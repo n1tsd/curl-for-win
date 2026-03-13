@@ -30,7 +30,8 @@ if [[ "${CW_CONFIG:-}" = *'win'* ]]; then
     extra+=' binutils-mingw-w64-x86-64'
   fi
   [[ "${CW_CONFIG:-}" != *'noWINE'* ]] && extra+=' wine64 wine'
-  if [[ "${CW_CONFIG:-}" = *'x86'* ]]; then
+  # Only install wine32 when not explicitly disabled via noWINE
+  if [[ "${CW_CONFIG:-}" = *'x86'* && "${CW_CONFIG:-}" != *'noWINE'* ]]; then
     if [ "${CW_LLVM_MINGW_ONLY:-}" != '1' ]; then
       extra+=' gcc-mingw-w64-i686-win32'
     elif [[ "${CW_CONFIG:-}" = *'boringssl'* ]]; then

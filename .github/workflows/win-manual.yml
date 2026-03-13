@@ -1,0 +1,66 @@
+---
+# Manually trigger Windows builds (ARM64 + x64 + x86)
+# Reuse Windows configuration from build.yml without affecting existing workflows
+name: win-manual
+
+'on':
+  # Manual trigger only; do not run on push
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+  CW_MAP: '1'
+  CW_JOBS: '5'
+  CW_CURL_TEST: '1'
+  DO_NOT_TRACK: '1'
+
+jobs:
+  win-llvm:
+    name: 'win-llvm (manual)'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 30
+    environment: 'production'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: '300'
+      - name: 'build'
+        env:
+          COSIGN_AGE_PASS: '${{ secrets.COSIGN_AGE_PASS }}'
+          COSIGN_KEY_PASS: '${{ secrets.COSIGN_KEY_PASS }}'
+          MINISIGN_AGE_PASS: '${{ secrets.MINISIGN_AGE_PASS }}'
+          MINISIGN_KEY_PASS: '${{ secrets.MINISIGN_KEY_PASS }}'
+          SIGN_SSH_AGE_PASS: '${{ secrets.SIGN_SSH_AGE_PASS }}'
+          SIGN_SSH_KEY_PASS: '${{ secrets.SIGN_SSH_KEY_PASS }}'
+          CW_LLVM_MINGW_DL: '1'
+          CW_LLVM_MINGW_ONLY: '1'
+        run: |
+          export CW_CONFIG="manual-werror-win-a64-x64-x86-noWINE"
+          export CW_REVISION="${GITHUB_SHA}"
+          . ./_versions.sh
+          sudo podman image trust set --type reject default
+          sudo podman image trust set --type accept docker.io/library
+          time podman pull "${OCI_IMAGE_DEBIAN_TESTING}"
+          podman images --digests
+          time podman run --volume "$(pwd):$(pwd)" --workdir "$(pwd)" \
+            --env-file <(env | grep -a -E \
+              '^(CW_|SIGN_|COSIGN_|MINISIGN_|GITHUB_|DO_NOT_TRACK)') \
+            "${OCI_IMAGE_DEBIAN_TESTING}" \
+            sh -c ./_ci-linux-debian.sh
+
+      - name: 'list dependencies'
+        run: cat urls.txt ./*-version-*.txt || true
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: 'curl-windows-llvm-manual-a64-x64-x86-noWINE'
+          retention-days: 7
+          path: |
+            *-*-mingw*.*
+            urls.txt
